@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <title> RemoteDesk - Peer </title>
+  <style type="text/css">
+    video {
+      max-width: 100%;
+    }
+    .room {
+      cursor: pointer;
+    }
+    div.select {
+      display: inline-block;
+      margin: 0 0 1em 0;
+    }
+  </style>
+
+  <script type="module">
+
+   
+    async function publish() {
+
+
+      let videoElement = document.getElementById('video_container');
+
+      const constraints = {
+          video: true,
+          audio: true
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      videoElement.srcObject = stream;
+
+      var pc = new RTCPeerConnection();
+
+      await pc.addTransceiver(stream.getVideoTracks()[0], {
+          direction: "sendonly",
+          streams: [stream],
+      });
+
+      await pc.addTransceiver(stream.getAudioTracks()[0], {
+          direction: "sendonly",
+          streams: [stream],
+      });
+
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      console.log(offer);
+
+      pc.onicegatheringstatechange = async () => {
+          console.log(pc.iceGatheringState);
+
+          if (pc.iceGatheringState === 'complete') {
+
+              let res = await fetch('http://127.0.0.1:8000/offer', {
+                  method: 'post',
+                  headers: {
+                      'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    sdp: pc.localDescription.sdp
+                  })
+              })
+
+              console.dir(res)
+              let ret = await res.json()
+
+              console.log(ret.sdp)
+
+              let answer = new RTCSessionDescription({
+                  type: 'answer',
+                  sdp: ret.sdp
+              })
+
+              await pc.setRemoteDescription(answer);
+
+          }
+          
+      }
+
+    }
+
+    window.publish = publish;
+
+  </script>
+</head>
+<body>
+
+  <h1> WebRTC GPT</h1>
+  <p id="roomid-place"></p>
+  <br />
+  <p id="appkey-place"></p>
+  <br />
+  <div id="conference">
+    <div>
+
+      <div id="container">
+        <video id="video_container" playsinline controls autoplay muted width="640" height="480"></video>
+    </div>
+      <br />
+
+      <button onclick="publish();"> Publish </button>
+      <span id="state_span"> </span>
+    </div>
+    Remote video:
+    <br />
+    <div id="remote_container">
+      <video id="remote_video" playsinline autoplay></video>
+    </div>
+    <br />
+  </div>
+</body>
+</html>
